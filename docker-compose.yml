@@ -18,5 +18,18 @@ services:
       timeout: 3s
       retries: 10
 
+  redis:
+    image: redis:7
+    container_name: sweety-redis
+    restart: unless-stopped
+    ports:
+      # host port 6380 so it can't clash with a Redis you already run on 6379
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
 volumes:
   sweety-pgdata:

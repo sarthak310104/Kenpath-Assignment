@@ -1,4 +1,5 @@
 const { query } = require('../db');
+const cache = require('../cache');
 const { todayLocal } = require('../utils/dates');
 
 const MAX_PER_DAY = 4;
@@ -206,6 +207,9 @@ async function createReading(req, res) {
       [req.user.userId, reading_date, slot, value]
     );
 
+    // cached reports are out of date now
+    await cache.clearReports(req.user.userId);
+
     return res.status(201).json({
       message: 'Reading added successfully.',
       reading: result.rows[0],
@@ -259,6 +263,8 @@ async function updateReading(req, res) {
       });
     }
 
+    await cache.clearReports(req.user.userId);
+
     return res.json({
       message: 'Reading updated successfully.',
       reading: result.rows[0],
@@ -283,6 +289,8 @@ async function deleteReading(req, res) {
         message: 'Reading not found.',
       });
     }
+
+    await cache.clearReports(req.user.userId);
 
     return res.json({
       message: 'Reading deleted successfully.',
