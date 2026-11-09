@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { readingsAPI } from '../api/readings';
+import { SLOTS } from '../utils/slots';
 
 function ReadingEditForm({ reading, onSaved, onCancel }) {
   const [form, setForm] = useState({
@@ -28,7 +29,7 @@ function ReadingEditForm({ reading, onSaved, onCancel }) {
     try {
       await readingsAPI.update(reading.id, {
         ...form,
-        value: Number(form.value),
+        value: form.value === '' ? null : Number(form.value),
       });
 
       onSaved();
@@ -40,59 +41,58 @@ function ReadingEditForm({ reading, onSaved, onCancel }) {
   }
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div>
-        <label htmlFor="edit-date">Date</label>
-        <input
-          id="edit-date"
-          name="reading_date"
-          type="date"
-          value={form.reading_date}
-          onChange={handleChange}
-          required
-        />
+    <form className="edit-form" onSubmit={handleSubmit} noValidate>
+      <div className="edit-fields">
+        <div className="field">
+          <label htmlFor={`edit-date-${reading.id}`}>Date</label>
+          <input
+            id={`edit-date-${reading.id}`}
+            name="reading_date"
+            type="date"
+            value={form.reading_date}
+            onChange={handleChange}
+          />
+        </div>
+
+        <div className="field">
+          <label htmlFor={`edit-slot-${reading.id}`}>Time slot</label>
+          <select
+            id={`edit-slot-${reading.id}`}
+            name="slot"
+            value={form.slot}
+            onChange={handleChange}
+          >
+            {SLOTS.map((slot) => (
+              <option key={slot.value} value={slot.value}>
+                {slot.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="field">
+          <label htmlFor={`edit-value-${reading.id}`}>Value (mg/dl)</label>
+          <input
+            id={`edit-value-${reading.id}`}
+            name="value"
+            type="number"
+            inputMode="numeric"
+            value={form.value}
+            onChange={handleChange}
+          />
+        </div>
       </div>
 
-      <div>
-        <label htmlFor="edit-slot">Time slot</label>
-        <select
-          id="edit-slot"
-          name="slot"
-          value={form.slot}
-          onChange={handleChange}
-          required
-        >
-          <option value="morning">Morning (fasting)</option>
-          <option value="after_breakfast">After breakfast</option>
-          <option value="after_lunch">After lunch</option>
-          <option value="after_dinner">After dinner</option>
-        </select>
+      {error && <p className="alert alert-error" role="alert">{error}</p>}
+
+      <div className="row-actions">
+        <button type="submit" className="btn btn-primary btn-small" disabled={submitting}>
+          {submitting ? 'Saving...' : 'Save'}
+        </button>
+        <button type="button" className="btn btn-ghost btn-small" onClick={onCancel}>
+          Cancel
+        </button>
       </div>
-
-      <div>
-        <label htmlFor="edit-value">Glucose value (mg/dL)</label>
-        <input
-          id="edit-value"
-          name="value"
-          type="number"
-          min="40"
-          max="600"
-          step="1"
-          value={form.value}
-          onChange={handleChange}
-          required
-        />
-      </div>
-
-      {error && <p role="alert">{error}</p>}
-
-      <button type="submit" disabled={submitting}>
-        {submitting ? 'Saving...' : 'Save changes'}
-      </button>
-
-      <button type="button" onClick={onCancel}>
-        Cancel
-      </button>
     </form>
   );
 }

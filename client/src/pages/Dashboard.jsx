@@ -1,15 +1,29 @@
 import { useEffect, useState } from 'react';
 import { readingsAPI } from '../api/readings';
+import { formatDate } from '../utils/date';
+import { SLOT_LABELS } from '../utils/slots';
 
 import ReadingForm from '../components/ReadingForm';
 import ReadingEditForm from '../components/ReadingEditForm';
 
-const SLOT_LABELS = {
-  morning: 'Morning (fasting)',
-  after_breakfast: 'After breakfast',
-  after_lunch: 'After lunch',
-  after_dinner: 'After dinner',
-};
+// The API sends a flat list (newest first). Put the readings of the same
+// day together so the page reads like a diary.
+function groupByDate(readings) {
+  const groups = [];
+
+  readings.forEach((reading) => {
+    const date = String(reading.reading_date).slice(0, 10);
+    const last = groups[groups.length - 1];
+
+    if (last && last.date === date) {
+      last.items.push(reading);
+    } else {
+      groups.push({ date, items: [reading] });
+    }
+  });
+
+  return groups;
+}
 
 function Dashboard() {
   const [readings, setReadings] = useState([]);
@@ -21,97 +35,128 @@ function Dashboard() {
   const [editingId, setEditingId] = useState(null);
 
   useEffect(() => {
-  async function fetchReadings() {
-    setLoading(true);
-    setError('');
+    async function fetchReadings() {
+      setLoading(true);
+      setError('');
+
+      try {
+        const data = await readingsAPI.getAll({ page, limit: 20 });
+
+        // deleted the last reading on this page -> go back one page
+        if (data.readings.length === 0 && page > 1) {
+          setPage(page - 1);
+          return;
+        }
+
+        setReadings(data.readings);
+        setPagination(data.pagination);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchReadings();
+  }, [page, refreshKey]);
+
+  function reload() {
+    setRefreshKey((current) => current + 1);
+  }
+
+  function handleReadingAdded() {
+    setPage(1);
+    reload();
+  }
+
+  async function handleDelete(id) {
+    const confirmed = window.confirm('Delete this reading?');
+
+    if (!confirmed) return;
 
     try {
-      const data = await readingsAPI.getAll({ page, limit: 20 });
-      setReadings(data.readings);
-      setPagination(data.pagination);
+      await readingsAPI.delete(id);
+      reload();
     } catch (err) {
       setError(err.message);
-    } finally {
-      setLoading(false);
     }
   }
 
-  fetchReadings();
-}, [page, refreshKey]);
-
-function handleReadingAdded() {
-  setPage(1);
-  setRefreshKey((current) => current + 1);
-}
+  const groups = groupByDate(readings);
 
   return (
-    <main>
-      <h1>My Glucose Readings</h1>
-      <p>Track and manage your blood glucose levels.</p>
-      <ReadingForm onReadingAdded={handleReadingAdded} />
+    <>
+      <h1 className="page-title">My readings</h1>
+      <p className="page-sub">Log up to 4 readings a day and keep track of them here.</p>
 
-      {loading && <p>Loading readings...</p>}
+      <div className="dashboard-grid">
+        <ReadingForm onReadingAdded={handleReadingAdded} />
 
-      {error && <p role="alert">{error}</p>}
+        <section className="card">
+          <h2>History</h2>
 
-      {!loading && !error && readings.length === 0 && (
-        <p>No readings yet. Add your first glucose reading.</p>
-      )}
+          {loading && readings.length === 0 && <p className="muted">Loading readings...</p>}
 
-      {!loading && readings.length > 0 && (
-        <>
-          <div>
-            {readings.map((reading) => (
-                <article key={reading.id}>
-                    {editingId === reading.id ? (
+          {error && <p className="alert alert-error" role="alert">{error}</p>}
+
+          {!loading && !error && readings.length === 0 && (
+            <p className="empty">No readings yet. Add your first one using the form.</p>
+          )}
+
+          {groups.map((group) => (
+            <div className="day-group" key={group.date}>
+              <h3 className="day-heading">
+                {formatDate(group.date)}
+                <span className="day-count">{group.items.length}/4</span>
+              </h3>
+
+              {group.items.map((reading) => (
+                <article className="reading-row" key={reading.id}>
+                  {editingId === reading.id ? (
                     <ReadingEditForm
-                        reading={reading}
-                        onSaved={() => {
+                      reading={reading}
+                      onSaved={() => {
                         setEditingId(null);
-                        setRefreshKey((current) => current + 1);
-                        }}
-                        onCancel={() => setEditingId(null)}
+                        reload();
+                      }}
+                      onCancel={() => setEditingId(null)}
                     />
-                    ) : (
+                  ) : (
                     <>
-                        <h3>{SLOT_LABELS[reading.slot]}</h3>
+                      <span className="slot-name">{SLOT_LABELS[reading.slot]}</span>
 
-                        <p>
-                        {String(reading.reading_date).slice(0, 10)}
-                        </p>
+                      <span className="reading-value">
+                        {reading.value} <small>mg/dl</small>
+                      </span>
 
-                        <p>{reading.value} mg/dL</p>
-
-                        <button onClick={() => setEditingId(reading.id)}>
-                        Edit
+                      <span className="row-actions">
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-small"
+                          onClick={() => setEditingId(reading.id)}
+                        >
+                          Edit
                         </button>
                         <button
-                            onClick={async () => {
-                                const confirmed = window.confirm(
-                                'Are you sure you want to delete this reading?'
-                                );
-
-                                if (!confirmed) return;
-
-                                try {
-                                await readingsAPI.delete(reading.id);
-                                setRefreshKey((current) => current + 1);
-                                } catch (err) {
-                                setError(err.message);
-                                }
-                            }}
-                            >
-                            Delete
+                          type="button"
+                          className="btn btn-danger btn-small"
+                          onClick={() => handleDelete(reading.id)}
+                        >
+                          Delete
                         </button>
+                      </span>
                     </>
-                    )}
+                  )}
                 </article>
-            ))}
-          </div>
+              ))}
+            </div>
+          ))}
 
-          {pagination && (
-            <div>
+          {pagination && pagination.totalPages > 1 && (
+            <div className="pager">
               <button
+                type="button"
+                className="btn btn-ghost btn-small"
                 onClick={() => setPage((current) => current - 1)}
                 disabled={page <= 1}
               >
@@ -123,6 +168,8 @@ function handleReadingAdded() {
               </span>
 
               <button
+                type="button"
+                className="btn btn-ghost btn-small"
                 onClick={() => setPage((current) => current + 1)}
                 disabled={page >= pagination.totalPages}
               >
@@ -130,9 +177,9 @@ function handleReadingAdded() {
               </button>
             </div>
           )}
-        </>
-      )}
-    </main>
+        </section>
+      </div>
+    </>
   );
 }
 

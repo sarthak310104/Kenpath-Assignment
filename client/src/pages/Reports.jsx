@@ -1,42 +1,42 @@
 import { useEffect, useState } from 'react';
 import { reportsAPI } from '../api/reports';
+import { formatDate, formatPeriod, getLocalDate } from '../utils/date';
+import { SLOT_LABELS } from '../utils/slots';
 
-const SLOT_LABELS = {
-  morning: 'Morning (fasting)',
-  after_breakfast: 'After breakfast',
-  after_lunch: 'After lunch',
-  after_dinner: 'After dinner',
-};
+function Stat({ label, value, unit }) {
+  return (
+    <div className="stat">
+      <span className="stat-label">{label}</span>
+      <span className="stat-value">
+        {value}
+        {unit && <small> {unit}</small>}
+      </span>
+    </div>
+  );
+}
 
 function ReportCard({ title, report }) {
   if (!report) return null;
 
-  const { summary } = report;
+  const { summary, period } = report;
 
   return (
-    <section>
+    <section className="card report-card">
       <h2>{title}</h2>
+      <p className="period">{formatPeriod(period)}</p>
 
       {summary.total_readings === 0 ? (
-        <p>No readings available for this period.</p>
+        <p className="empty">No readings in this period yet.</p>
       ) : (
-        <div>
-          <p>Total readings: {summary.total_readings}</p>
-          <p>Average: {summary.average} mg/dL</p>
-          <p>Lowest: {summary.minimum} mg/dL</p>
-          <p>Highest: {summary.maximum} mg/dL</p>
+        <div className="stats">
+          <Stat label="Average" value={summary.average} unit="mg/dl" />
+          <Stat label="Lowest" value={summary.minimum} unit="mg/dl" />
+          <Stat label="Highest" value={summary.maximum} unit="mg/dl" />
+          <Stat label="Readings" value={summary.total_readings} />
         </div>
       )}
     </section>
   );
-}
-function getLocalDate() {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
-
-  return `${year}-${month}-${day}`;
 }
 
 function Reports() {
@@ -51,6 +51,9 @@ function Reports() {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    // if the date changes again before this finishes, drop the old answer
+    let stale = false;
+
     async function fetchReports() {
       setLoading(true);
       setError('');
@@ -62,70 +65,85 @@ function Reports() {
           reportsAPI.previousMonth(selectedDate),
         ]);
 
-        setReports({
-          daily,
-          monthToDate,
-          previousMonth,
-        });
+        if (stale) return;
+
+        setReports({ daily, monthToDate, previousMonth });
       } catch (err) {
-        setError(err.message);
+        if (!stale) setError(err.message);
       } finally {
-        setLoading(false);
+        if (!stale) setLoading(false);
       }
     }
 
     fetchReports();
+
+    return () => {
+      stale = true;
+    };
   }, [selectedDate]);
 
+  const dailyReadings = reports.daily ? reports.daily.readings : [];
+
   return (
-    <main>
-      <h1>Glucose Reports</h1>
-      <p>Review your glucose readings over different periods.</p>
+    <>
+      <h1 className="page-title">Reports</h1>
+      <p className="page-sub">Pick a date to see that day, the month so far and last month.</p>
 
-      <label htmlFor="report-date">Select date: </label>
-      <input
-        id="report-date"
-        type="date"
-        value={selectedDate}
-        max={getLocalDate()}
-        onChange={(event) => setSelectedDate(event.target.value)}
-      />
+      <div className="toolbar">
+        <label htmlFor="report-date">Date</label>
+        <input
+          id="report-date"
+          type="date"
+          value={selectedDate}
+          max={getLocalDate()}
+          onChange={(event) => {
+            // ignore the box being cleared, there is no report for "no date"
+            if (event.target.value) setSelectedDate(event.target.value);
+          }}
+        />
+      </div>
 
-      {loading && <p>Loading reports...</p>}
+      {loading && <p className="muted">Loading reports...</p>}
 
-      {error && <p role="alert">{error}</p>}
+      {error && <p className="alert alert-error" role="alert">{error}</p>}
 
-      {!loading && !error && (
+      {!loading && !error && reports.daily && (
         <>
-          <ReportCard title="Daily Report" report={reports.daily} />
+          <div className="report-grid">
+            <ReportCard title="Daily" report={reports.daily} />
+            <ReportCard title="Month to date" report={reports.monthToDate} />
+            <ReportCard title="Previous month" report={reports.previousMonth} />
+          </div>
 
-          <ReportCard
-            title="Month-to-Date Report"
-            report={reports.monthToDate}
-          />
+          <section className="card">
+            <h2>Readings on {formatDate(selectedDate)}</h2>
 
-          <ReportCard
-            title="Previous Month Report"
-            report={reports.previousMonth}
-          />
-
-          <section>
-            <h2>Daily Readings</h2>
-
-            {reports.daily.readings.length === 0 ? (
-              <p>No readings for this date. Add a reading from your dashboard.</p>
+            {dailyReadings.length === 0 ? (
+              <p className="empty">
+                Nothing logged for this day. You can add a reading from the Readings page.
+              </p>
             ) : (
-              reports.daily.readings.map((reading) => (
-                <article key={reading.id}>
-                  <h3>{SLOT_LABELS[reading.slot]}</h3>
-                  <p>{reading.value} mg/dL</p>
-                </article>
-              ))
+              <table className="daily-table">
+                <thead>
+                  <tr>
+                    <th>Time slot</th>
+                    <th>Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dailyReadings.map((reading) => (
+                    <tr key={reading.id}>
+                      <td>{SLOT_LABELS[reading.slot]}</td>
+                      <td>{reading.value} mg/dl</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
           </section>
         </>
       )}
-    </main>
+    </>
   );
 }
 

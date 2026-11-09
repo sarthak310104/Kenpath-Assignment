@@ -27,43 +27,46 @@ function Login() {
   }
 
   return (
-    <main>
-      <h1>Welcome back</h1>
-      <p>Log in to your Sweety account.</p>
+    <main className="auth-page">
+      <div className="card auth-card">
+        <p className="brand brand-center">Sweety</p>
+        <h1>Welcome back</h1>
+        <p className="muted">Log in to your account.</p>
 
-      <form onSubmit={handleSubmit}>
-        <div>
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="field">
+            <label htmlFor="email">Email</label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
+          </div>
 
-        <div>
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
-        </div>
+          <div className="field">
+            <label htmlFor="password">Password</label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+            />
+          </div>
 
-        {error && <p role="alert">{error}</p>}
+          {error && <p className="alert alert-error" role="alert">{error}</p>}
 
-        <button type="submit" disabled={submitting}>
-          {submitting ? 'Logging in...' : 'Log in'}
-        </button>
-      </form>
+          <button type="submit" className="btn btn-primary btn-block" disabled={submitting}>
+            {submitting ? 'Logging in...' : 'Log in'}
+          </button>
+        </form>
 
-      <p>
-        Don't have an account? <Link to="/signup">Sign up</Link>
-      </p>
+        <p className="auth-switch">
+          Don't have an account? <Link to="/signup">Sign up</Link>
+        </p>
+      </div>
     </main>
   );
 }
