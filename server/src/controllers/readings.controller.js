@@ -1,4 +1,7 @@
 const { query } = require('../db');
+const { todayLocal } = require('../utils/dates');
+
+const MAX_PER_DAY = 4;
 
 const SLOTS = {
   morning: 'Morning (fasting)',
@@ -28,9 +31,7 @@ function validateReading({ reading_date, slot, value }) {
     return 'Please enter a valid date.';
   }
 
-  const today = new Date().toISOString().slice(0, 10);
-
-  if (reading_date > today) {
+  if (reading_date > todayLocal()) {
     return 'Date cannot be in the future.';
   }
 
@@ -54,10 +55,34 @@ function validateReading({ reading_date, slot, value }) {
   return null;
 }
 
+// How many readings this user already has on a date.
+// When editing, pass the reading's own id so it doesn't count itself.
+async function countForDay(userId, date, ignoreId = null) {
+  const result = await query(
+    `SELECT COUNT(*) AS total
+     FROM readings
+     WHERE user_id = $1
+       AND reading_date = $2
+       AND ($3::int IS NULL OR id <> $3::int)`,
+    [userId, date, ignoreId]
+  );
+
+  return result.rows[0].total;
+}
+
+function dayFullResponse(res) {
+  return res.status(409).json({
+    message: `You can add only ${MAX_PER_DAY} readings per day.`,
+  });
+}
+
 function handleDatabaseError(error, res, slot) {
   if (error.code === '23505') {
+    // "a Morning (fasting)" but "an After lunch"
+    const article = slot === 'morning' ? 'a' : 'an';
+
     return res.status(409).json({
-      message: `You already have an ${SLOTS[slot] || slot} reading for this date.`,
+      message: `You already have ${article} ${SLOTS[slot] || slot} reading for this date.`,
     });
   }
 
@@ -168,6 +193,12 @@ async function createReading(req, res) {
   }
 
   try {
+    // Checked before the insert so a full day gets the "4 per day" message
+    // instead of a duplicate-slot one.
+    if (await countForDay(req.user.userId, reading_date) >= MAX_PER_DAY) {
+      return dayFullResponse(res);
+    }
+
     const result = await query(
       `INSERT INTO readings (user_id, reading_date, slot, value)
        VALUES ($1, $2, $3, $4)
@@ -201,6 +232,13 @@ async function updateReading(req, res) {
   }
 
   try {
+    // Moving a reading onto a day that already has 4 others isn't allowed either.
+    const others = await countForDay(req.user.userId, reading_date, req.params.id);
+
+    if (others >= MAX_PER_DAY) {
+      return dayFullResponse(res);
+    }
+
     const result = await query(
       `UPDATE readings
        SET reading_date = $1, slot = $2, value = $3
