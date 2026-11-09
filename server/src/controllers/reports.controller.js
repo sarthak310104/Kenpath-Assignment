@@ -77,27 +77,43 @@ async function getDailyReport(req, res) {
 }
 
 async function getMonthToDateReport(req, res) {
-  const result = await query(
-    `SELECT
-       date_trunc('month', CURRENT_DATE)::date AS start_date,
-       (CURRENT_DATE + INTERVAL '1 day')::date AS end_date`
-  );
+  const { date } = req.query;
 
-  const { start_date, end_date } = result.rows[0];
+  if (!date || !isValidDate(date)) {
+    return res.status(400).json({
+      message: 'Please provide a valid date in YYYY-MM-DD format.'
+    });
+  }
 
-  return generateReport(req, res, start_date, end_date);
+  const selectedDate = new Date(`${date}T00:00:00.000Z`);
+
+  const startDate = `${date.slice(0, 7)}-01`;
+
+  selectedDate.setUTCDate(selectedDate.getUTCDate() + 1);
+  const endDate = selectedDate.toISOString().slice(0, 10);
+
+  return generateReport(req, res, startDate, endDate);
 }
 
 async function getPreviousMonthReport(req, res) {
-  const result = await query(
-    `SELECT
-       (date_trunc('month', CURRENT_DATE) - INTERVAL '1 month')::date AS start_date,
-       date_trunc('month', CURRENT_DATE)::date AS end_date`
-  );
+  const { date } = req.query;
 
-  const { start_date, end_date } = result.rows[0];
+  if (!date || !isValidDate(date)) {
+    return res.status(400).json({
+      message: 'Please provide a valid date in YYYY-MM-DD format.'
+    });
+  }
 
-  return generateReport(req, res, start_date, end_date);
+  const selectedDate = new Date(`${date}T00:00:00.000Z`);
+
+  const endDate = `${date.slice(0, 7)}-01`;
+
+  selectedDate.setUTCDate(1);
+  selectedDate.setUTCMonth(selectedDate.getUTCMonth() - 1);
+
+  const startDate = selectedDate.toISOString().slice(0, 10);
+
+  return generateReport(req, res, startDate, endDate);
 }
 
 module.exports = {
