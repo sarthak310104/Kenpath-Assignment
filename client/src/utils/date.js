@@ -25,6 +25,14 @@ export function formatDate(isoDate) {
   });
 }
 
+// '2026-10-15' -> '15 Oct' (for chart labels)
+export function formatShortDate(isoDate) {
+  return parseDate(isoDate).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
 // The API's end_date is exclusive (the day after the last day counted),
 // so the last day to show is one before it.
 export function formatPeriod(period) {
