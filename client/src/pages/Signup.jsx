@@ -6,6 +6,7 @@ function Signup() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isDoctor, setIsDoctor] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -18,7 +19,12 @@ function Signup() {
     setSubmitting(true);
 
     try {
-      await register({ name, email, password });
+      await register({
+        name,
+        email,
+        password,
+        role: isDoctor ? 'doctor' : 'patient',
+      });
       navigate('/dashboard');
     } catch (err) {
       setError(err.message);
@@ -69,6 +75,15 @@ function Signup() {
             />
             <span className="hint">At least 8 characters.</span>
           </div>
+
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={isDoctor}
+              onChange={(event) => setIsDoctor(event.target.checked)}
+            />
+            <span>I'm a doctor and want to view my patients' reports</span>
+          </label>
 
           {error && <p className="alert alert-error" role="alert">{error}</p>}
 

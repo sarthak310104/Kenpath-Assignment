@@ -5,6 +5,7 @@ import { SLOT_LABELS } from '../utils/slots';
 
 import ReadingForm from '../components/ReadingForm';
 import ReadingEditForm from '../components/ReadingEditForm';
+import DoctorPicker from '../components/DoctorPicker';
 
 // The API sends a flat list (newest first). Put the readings of the same
 // day together so the page reads like a diary.
@@ -90,7 +91,10 @@ function Dashboard() {
       <p className="page-sub">Log up to 4 readings a day and keep track of them here.</p>
 
       <div className="dashboard-grid">
-        <ReadingForm onReadingAdded={handleReadingAdded} />
+        <div className="side-stack">
+          <ReadingForm onReadingAdded={handleReadingAdded} />
+          <DoctorPicker />
+        </div>
 
         <section className="card">
           <h2>History</h2>
