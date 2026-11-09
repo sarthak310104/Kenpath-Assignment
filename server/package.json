@@ -6,7 +6,10 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "jest --runInBand"
+    "test": "jest --runInBand",
+    "db:init": "node scripts/init-db.js",
+    "db:init:test": "node scripts/init-db.js --test",
+    "db:reset": "node scripts/init-db.js --reset"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
