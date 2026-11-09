@@ -6,6 +6,8 @@ function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
+  const isDoctor = user?.role === 'doctor';
+
   function handleLogout() {
     logout();
     navigate('/login');
@@ -18,11 +20,18 @@ function Layout() {
           <span className="brand">Sweety</span>
 
           <nav className="nav-links">
-            <NavLink to="/dashboard">Readings</NavLink>
-            <NavLink to="/reports">Reports</NavLink>
+            {isDoctor ? (
+              <NavLink to="/patients">Patients</NavLink>
+            ) : (
+              <>
+                <NavLink to="/dashboard">Readings</NavLink>
+                <NavLink to="/reports">Reports</NavLink>
+              </>
+            )}
           </nav>
 
           <div className="nav-user">
+            {isDoctor && <span className="badge">Doctor</span>}
             <span className="nav-name">{user?.name}</span>
             <button
               type="button"

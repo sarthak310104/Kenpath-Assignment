@@ -59,6 +59,11 @@ export function AuthProvider({ children }) {
     setUser(null);
   }
 
+  // change a few fields of the logged-in user (for example their doctor)
+  function updateUser(changes) {
+    setUser((current) => ({ ...current, ...changes }));
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -67,6 +72,7 @@ export function AuthProvider({ children }) {
         login,
         register,
         logout,
+        updateUser,
         isAuthenticated: !!user,
       }}
     >

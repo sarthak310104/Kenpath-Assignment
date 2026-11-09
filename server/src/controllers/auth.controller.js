@@ -14,7 +14,7 @@ function createToken(userId) {
 
 async function register(req, res) {
   try {
-    const { name, email, password } = req.body || {};
+    const { name, email, password, role } = req.body || {};
 
     if (
       typeof name !== 'string' ||
@@ -47,6 +47,13 @@ async function register(req, res) {
       });
     }
 
+    // role is optional and defaults to patient
+    if (role !== undefined && role !== 'patient' && role !== 'doctor') {
+      return res.status(400).json({
+        message: 'Role must be patient or doctor.',
+      });
+    }
+
     const existingUser = await query(
       'SELECT id FROM users WHERE lower(email) = $1',
       [cleanEmail]
@@ -61,10 +68,10 @@ async function register(req, res) {
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
 
     const result = await query(
-      `INSERT INTO users (name, email, password_hash)
-       VALUES ($1, $2, $3)
-       RETURNING id, name, email, created_at`,
-      [cleanName, cleanEmail, passwordHash]
+      `INSERT INTO users (name, email, password_hash, role)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, name, email, role, doctor_id, created_at`,
+      [cleanName, cleanEmail, passwordHash, role || 'patient']
     );
 
     const user = result.rows[0];
@@ -107,7 +114,7 @@ async function login(req, res) {
     const cleanEmail = email.trim().toLowerCase();
 
     const result = await query(
-      `SELECT id, name, email, password_hash
+      `SELECT id, name, email, role, doctor_id, password_hash
        FROM users
        WHERE lower(email) = $1`,
       [cleanEmail]
@@ -139,6 +146,8 @@ async function login(req, res) {
         id: user.id,
         name: user.name,
         email: user.email,
+        role: user.role,
+        doctor_id: user.doctor_id,
       },
     });
   } catch (error) {
@@ -153,7 +162,7 @@ async function login(req, res) {
 async function getMe(req, res) {
   try {
     const result = await query(
-      `SELECT id, name, email, created_at
+      `SELECT id, name, email, role, doctor_id, created_at
        FROM users
        WHERE id = $1`,
       [req.user.userId]

@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const bcrypt = require('bcryptjs');
 const { query, pool } = require('../src/db');
+const cache = require('../src/cache');
 
 async function seed() {
   try {
@@ -58,15 +59,40 @@ async function seed() {
       }
     }
 
+    // A demo doctor, and the demo patient has picked them,
+    // so the doctor login has someone to look at straight away.
+    const doctorHash = await bcrypt.hash('Doctor@12345', 10);
+
+    await query(
+      `INSERT INTO users (name, email, password_hash, role)
+       VALUES ($1, $2, $3, 'doctor')
+       ON CONFLICT DO NOTHING`,
+      ['Dr. Demo', 'doctor@sweety.com', doctorHash]
+    );
+
+    await query(
+      `UPDATE users
+       SET doctor_id = (SELECT id FROM users WHERE LOWER(email) = 'doctor@sweety.com')
+       WHERE id = $1`,
+      [userId]
+    );
+
+    // readings were inserted directly, so drop any cached reports for this user
+    await cache.clearReports(userId);
+
     console.log('Database seeded successfully!');
     console.log('Generated readings across the last 35 days.');
     console.log('Demo login:');
     console.log('Email: demo@sweety.com');
     console.log('Password: Demo@12345');
+    console.log('Demo doctor login (has the demo patient assigned):');
+    console.log('Email: doctor@sweety.com');
+    console.log('Password: Doctor@12345');
   } catch (error) {
     console.error('Seeding failed:', error);
     process.exitCode = 1;
   } finally {
+    await cache.close();
     await pool.end();
   }
 }
