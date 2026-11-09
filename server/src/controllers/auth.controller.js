@@ -1,8 +1,11 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { query } = require('../db');
+const { makeDoctorCode } = require('../utils/doctorCode');
 
 const SALT_ROUNDS = 10;
+
+const PENDING_MESSAGE = 'We are currently verifying your profile, check back later.';
 
 function createToken(userId) {
   return jwt.sign(
@@ -10,6 +13,35 @@ function createToken(userId) {
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
   );
+}
+
+async function createPendingDoctor(res, name, email, passwordHash) {
+  // a clash on the random code is very unlikely, but just try again
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = makeDoctorCode();
+
+    try {
+      await query(
+        `INSERT INTO pending_doctors (code, name, email, password_hash)
+         VALUES ($1, $2, $3, $4)`,
+        [code, name, email, passwordHash]
+      );
+
+      if (process.env.NODE_ENV !== 'test') {
+        console.log(`[doctor signup] waiting for approval: ${name} <${email}> code ${code}`);
+      }
+
+      return res.status(202).json({ message: PENDING_MESSAGE, pending: true });
+    } catch (error) {
+      if (error.code === '23505' && error.constraint === 'pending_doctors_code_key') {
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw new Error('Could not make a unique doctor code.');
 }
 
 async function register(req, res) {
@@ -65,7 +97,24 @@ async function register(req, res) {
       });
     }
 
+    const waiting = await query(
+      'SELECT id FROM pending_doctors WHERE lower(email) = $1',
+      [cleanEmail]
+    );
+
+    if (waiting.rows.length > 0) {
+      return res.status(409).json({
+        message: 'A doctor request with this email is already waiting for approval.',
+      });
+    }
+
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+
+    // Doctors don't get an account straight away. They wait in
+    // pending_doctors until the server owner approves their code.
+    if (role === 'doctor') {
+      return createPendingDoctor(res, cleanName, cleanEmail, passwordHash);
+    }
 
     const result = await query(
       `INSERT INTO users (name, email, password_hash, role)
@@ -121,6 +170,19 @@ async function login(req, res) {
     );
 
     if (result.rows.length === 0) {
+      // not a user yet, maybe a doctor who is still waiting for approval
+      const waiting = await query(
+        'SELECT password_hash FROM pending_doctors WHERE lower(email) = $1',
+        [cleanEmail]
+      );
+
+      if (
+        waiting.rows.length > 0 &&
+        (await bcrypt.compare(password, waiting.rows[0].password_hash))
+      ) {
+        return res.status(403).json({ message: PENDING_MESSAGE });
+      }
+
       return res.status(401).json({
         message: 'Invalid email or password.',
       });

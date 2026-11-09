@@ -8,6 +8,7 @@ function Signup() {
   const [password, setPassword] = useState('');
   const [isDoctor, setIsDoctor] = useState(false);
   const [error, setError] = useState('');
+  const [waitingMessage, setWaitingMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const { register } = useAuth();
@@ -19,18 +20,42 @@ function Signup() {
     setSubmitting(true);
 
     try {
-      await register({
+      const data = await register({
         name,
         email,
         password,
         role: isDoctor ? 'doctor' : 'patient',
       });
-      navigate('/dashboard');
+
+      if (data.pending) {
+        setWaitingMessage(data.message);
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError(err.message);
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (waitingMessage) {
+    return (
+      <main className="auth-page">
+        <div className="card auth-card">
+          <p className="brand brand-center">Sweety</p>
+          <h1>Thanks, {name.trim()}</h1>
+          <p className="alert alert-success" role="status">{waitingMessage}</p>
+          <p className="muted">
+            Once your profile is approved you can log in with the email and
+            password you just used.
+          </p>
+          <p className="auth-switch">
+            <Link to="/login">Back to log in</Link>
+          </p>
+        </div>
+      </main>
+    );
   }
 
   return (

@@ -1,5 +1,9 @@
 require('dotenv').config();
 
+// doctors are created through the approval flow, which needs the admin key
+const ADMIN_KEY = 'test-admin-key';
+process.env.ADMIN_API_KEY = ADMIN_KEY;
+
 const request = require('supertest');
 const app = require('../app');
 const { query, pool } = require('../db');
@@ -29,6 +33,34 @@ describe('Doctor role', () => {
     };
   }
 
+  // sign up as a doctor, approve the code like the server owner would, log in
+  async function signUpDoctor(name, email) {
+    const signup = await request(app)
+      .post('/api/auth/register')
+      .send({ name, email, password: 'password123', role: 'doctor' });
+
+    const { rows } = await query(
+      'SELECT code FROM pending_doctors WHERE email = $1',
+      [email]
+    );
+
+    await request(app)
+      .post('/api/admin/doctors/approve')
+      .set('X-Admin-Key', ADMIN_KEY)
+      .send({ code: rows[0].code });
+
+    const response = await request(app)
+      .post('/api/auth/login')
+      .send({ email, password: 'password123' });
+
+    return {
+      id: response.body.user.id,
+      token: response.body.token,
+      signup,
+      response
+    };
+  }
+
   function get(path, who) {
     return request(app)
       .get(path)
@@ -44,9 +76,10 @@ describe('Doctor role', () => {
 
   beforeAll(async () => {
     await query('DELETE FROM users WHERE email = ANY($1)', [EMAILS]);
+    await query('DELETE FROM pending_doctors WHERE email = ANY($1)', [EMAILS]);
 
-    doc1 = await signUp('Dr One', EMAILS[0], 'doctor');
-    doc2 = await signUp('Dr Two', EMAILS[1], 'doctor');
+    doc1 = await signUpDoctor('Dr One', EMAILS[0]);
+    doc2 = await signUpDoctor('Dr Two', EMAILS[1]);
     patientA = await signUp('Patient A', EMAILS[2]);
     patientB = await signUp('Patient B', EMAILS[3]);
 
@@ -62,12 +95,14 @@ describe('Doctor role', () => {
 
   afterAll(async () => {
     await query('DELETE FROM users WHERE email = ANY($1)', [EMAILS]);
+    await query('DELETE FROM pending_doctors WHERE email = ANY($1)', [EMAILS]);
     await pool.end();
   });
 
   describe('accounts', () => {
     test('should sign up as a doctor and default everyone else to patient', () => {
-      expect(doc1.response.status).toBe(201);
+      expect(doc1.signup.status).toBe(202);
+      expect(doc1.response.status).toBe(200);
       expect(doc1.response.body.user.role).toBe('doctor');
       expect(patientA.response.body.user.role).toBe('patient');
     });

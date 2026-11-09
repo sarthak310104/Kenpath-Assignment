@@ -7,6 +7,7 @@ const readingsRoutes = require('./routes/readings.routes');
 const reportsRoutes = require('./routes/reports.routes');
 const usersRoutes = require('./routes/users.routes');
 const doctorRoutes = require('./routes/doctor.routes');
+const adminRoutes = require('./routes/admin.routes');
 
 app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173' }));
 app.use(express.json());
@@ -21,5 +22,6 @@ app.use('/api/readings', readingsRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/doctor', doctorRoutes);
+app.use('/api/admin', adminRoutes);
 
 module.exports = app;

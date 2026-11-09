@@ -48,8 +48,11 @@ export function AuthProvider({ children }) {
   async function register(userData) {
     const data = await authAPI.register(userData);
 
-    localStorage.setItem('token', data.token);
-    setUser(data.user);
+    // a doctor waiting for approval gets no token yet
+    if (data.token) {
+      localStorage.setItem('token', data.token);
+      setUser(data.user);
+    }
 
     return data;
   }

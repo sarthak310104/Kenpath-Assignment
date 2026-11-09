@@ -76,3 +76,25 @@ DROP TRIGGER IF EXISTS readings_set_updated_at ON readings;
 CREATE TRIGGER readings_set_updated_at
   BEFORE UPDATE ON readings
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- ---------------------------------------------------------------------------
+-- pending_doctors
+-- A doctor who signed up but has not been approved yet. There is no users row
+-- until someone approves the code, so a pending doctor can't log in. On
+-- approval the row moves into users (role 'doctor') and is deleted from here.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS pending_doctors (
+  id            INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  -- 8 characters, 5 letters + 3 digits, made by the app (utils/doctorCode.js)
+  code          TEXT         NOT NULL,
+  name          VARCHAR(100) NOT NULL,
+  email         VARCHAR(255) NOT NULL,
+  password_hash TEXT         NOT NULL,
+  created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+
+  CONSTRAINT pending_doctors_code_format CHECK (code ~ '^[A-Z0-9]{8}$'),
+  CONSTRAINT pending_doctors_name_not_blank CHECK (length(btrim(name)) > 0)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS pending_doctors_code_key ON pending_doctors (code);
+CREATE UNIQUE INDEX IF NOT EXISTS pending_doctors_email_lower_key ON pending_doctors (lower(email));
